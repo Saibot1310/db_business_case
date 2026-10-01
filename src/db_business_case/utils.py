@@ -6,7 +6,7 @@ import io
 def db_connection():
   while True:
     try:
-      conn = sqlite3.connect(database="inventario_dev.db")
+      conn = sqlite3.connect(database="src\db_business_case\inventario_prod.db")
       cur = conn.cursor()
       print("Conexión a la DB lograda con éxito\n")
       break
@@ -34,7 +34,7 @@ def crear_producto():
     
   while True:
     try:
-      cantidad = input("Ingrese la cantidad inicial en el inventario")
+      cantidad = input("Ingrese la cantidad inicial en el inventario: ")
       if not cantidad.isdigit():
         raise ValueError(f"La cantidad de inventario inicial debe ser un número entero positivo. Cantidad ingresada: {cantidad}")
     except Exception as e:
@@ -45,7 +45,7 @@ def crear_producto():
     
   while True:
     try:
-      precio_unitario = input("Ingrese el precio unitario del producto")
+      precio_unitario = input("Ingrese el precio unitario del producto: ")
       if not (precio_unitario.replace(".", "").isdigit() or precio_unitario.replace(",", ".").isdigit()):
         raise ValueError(f"El precio unitario debe ser un número positivo (ej: 10.50s). Precio ingresado: {precio_unitario}")
     except Exception as e:
@@ -147,11 +147,17 @@ def actualizar_producto(id: int, nuevo_nombre: str = None, nueva_cantidad: int =
     (id)
     ).fetchone()
     
+    if not nueva_cantidad:
+      cantidad = dato[3]
+      
+    if not nuevo_precio_unitario:
+      precio_unitario = dato[4]
+    
     if not dato:
-      print(f"\n El producto no con ID {id} no existe en el inventario")
+      print(f"\n El producto con ID {id} no existe en el inventario")
       return
       
-    if not nuevo_nombre and not nueva_cantidad and nuevo_precio_unitario:
+    if not nuevo_nombre and not nueva_cantidad and not nuevo_precio_unitario:
       print(f"No se ingresaron nuevos datos para el producto con el ID {id}")
       return
     elif nuevo_nombre and not nueva_cantidad and not nuevo_precio_unitario:
@@ -163,7 +169,7 @@ def actualizar_producto(id: int, nuevo_nombre: str = None, nueva_cantidad: int =
       conn.commit()
       print(f"\nEl producto con ID {id} fue actualizado con éxitos")  
     elif nuevo_nombre and not nueva_cantidad and nuevo_precio_unitario:
-      cur.execute("""UPDATE productos SET nombre = ?, precio_unitario = ? WHERE id = ?""", (nuevo_nombre, nuevo_precio_unitario, id))
+      cur.execute("""UPDATE productos SET nombre = ?, precio_unitario = ?, valor_total = ? WHERE id = ?""", (nuevo_nombre, nuevo_precio_unitario, id, int(nueva_cantidad * precio_unitario)))
       conn.commit()
       print(f"\nEl producto con ID {id} fue actualizado con éxitos")  
     elif not nuevo_nombre and nueva_cantidad and nuevo_precio_unitario:
@@ -178,6 +184,14 @@ def actualizar_producto(id: int, nuevo_nombre: str = None, nueva_cantidad: int =
       cur.execute("""UPDATE productos SET precio_unitario = ? WHERE id = ?""", (nuevo_precio_unitario, id))
       conn.commit()
       print(f"\nEl producto con ID {id} fue actualizado con éxitos")
+      
+    
+    dato = cur.execute(
+    """
+      SELECT * FROM productos WHERE id = ?
+    """,
+    (id)
+    ).fetchone()
       
     print(f"ID                     : {dato[0]}")
     print(f"Fecha                  : {dato[1]}")
@@ -217,8 +231,8 @@ def generar_informe():
     
     _, cur = db_connection()
     
-    autor = input("Ingrese el nombre del quien genera el informe")
-    revisor = input("Ingrese el nombre de quien revisa el informe")
+    autor = input("Ingrese el nombre del quien genera el informe: ")
+    revisor = input("Ingrese el nombre de quien revisa el informe: ")
     
     encabezado = ["ID", "Fecha Creación", "Producto", "Cantidad", "Precio Unitario", "Valor Total"]
     
@@ -252,14 +266,13 @@ def generar_informe():
     
     for fila in productos:
       for i, item in enumerate(fila):
-        if isinstance(item, float) and fila.index(item) != 0 and fila.index(item) != 2:
+        if isinstance(item, float) or isinstance(item, int) and fila.index(item) != 0 and fila.index(item) != 3:
           pdf.set_font("helvetica", size=12)
           pdf.cell(w=ancho_cols[i], h=10, text=f"${item:.2f}", border=1, align="C")
         else:
           pdf.set_font("helvetica", size=12)
           pdf.cell(w=ancho_cols[i], h=10, text=str(item), border=1, align="C")
-      
-    pdf.ln()
+      pdf.ln()
       
     gran_total = sum(producto[-1] for producto in datos)
     pdf.set_font("helvetica", size=14, style="B")
@@ -279,7 +292,7 @@ def generar_informe():
     pdf.output(buffer)
     buffer.seek(0)
     
-    template_pdf = PdfReader("plantilla.pdf")
+    template_pdf = PdfReader("src\db_business_case\plantilla.pdf")
     overlay_pdf = PdfReader(buffer)
     writer = PdfWriter()
     
@@ -288,7 +301,7 @@ def generar_informe():
     template_page.merge_page(overlay_page)
     writer.add_page(template_page)
     
-    with open("Informe Sistema de Gestión de inventario.pdf", "wb") as f:
+    with open("src\db_business_case\Informe Sistema de Gestión de inventario.pdf", "wb") as f:
       writer.write(f)
       
     print("\n Informe generado en formato PDF con éxito")
